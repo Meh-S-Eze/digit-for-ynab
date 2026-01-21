@@ -31,16 +31,17 @@ const Login = () => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-primary-900)] text-[var(--color-text-primary)] relative z-10">
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAFAFA] text-[var(--color-text-primary)] relative z-10">
             {/* Mesh gradient overlay for subtle brand feel */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-accent-900)]/20 via-transparent to-[var(--color-amber-900)]/20 pointer-events-none"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-mesh-1)] via-transparent to-[var(--color-mesh-2)] pointer-events-none opacity-80"></div>
 
-            <div className="w-full max-w-md p-8 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl relative z-20">
-                <h2 className="text-3xl font-bold mb-2 text-center text-white font-display">Digit</h2>
-                <p className="text-center text-white/50 mb-8 text-sm">Sign in to manage your finances</p>
+            <div className="w-full max-w-md p-8 bg-white/80 backdrop-blur-xl rounded-2xl border border-[var(--color-border)] shadow-xl relative z-20">
+                <h2 className="text-3xl font-bold mb-2 text-center text-[var(--color-primary-900)] font-display">Digit</h2>
+                <p className="text-center text-[var(--color-text-secondary)] mb-8 text-sm">Sign in to manage your finances</p>
 
                 {error && (
-                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-200 text-sm backdrop-blur-sm flex items-center gap-2">
+                    <div className="mb-4 p-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                         {error}
                     </div>
@@ -48,25 +49,25 @@ const Login = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-white/60 mb-1.5 ml-1">Email</label>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-1.5 ml-1">Email</label>
                         <input
                             type="email"
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl focus:ring-2 focus:ring-[var(--color-accent-400)] focus:border-transparent outline-none text-white placeholder-white/20 backdrop-blur-sm transition-all"
+                            className="w-full px-4 py-3 bg-white border border-[var(--color-border)] rounded-xl focus:ring-2 focus:ring-[var(--color-accent-400)] focus:border-transparent outline-none text-[var(--color-text-primary)] placeholder-gray-400 transition-all shadow-sm"
                             placeholder="you@example.com"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-white/60 mb-1.5 ml-1">Password</label>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-1.5 ml-1">Password</label>
                         <input
                             type="password"
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl focus:ring-2 focus:ring-[var(--color-accent-400)] focus:border-transparent outline-none text-white placeholder-white/20 backdrop-blur-sm transition-all"
+                            className="w-full px-4 py-3 bg-white border border-[var(--color-border)] rounded-xl focus:ring-2 focus:ring-[var(--color-accent-400)] focus:border-transparent outline-none text-[var(--color-text-primary)] placeholder-gray-400 transition-all shadow-sm"
                             placeholder="••••••••"
                         />
                     </div>
@@ -74,15 +75,15 @@ const Login = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3.5 px-4 mt-2 bg-[var(--color-accent-600)] hover:bg-[var(--color-accent-500)] text-white font-bold rounded-xl transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-[var(--color-accent-900)]/20"
+                        className="w-full py-3.5 px-4 mt-2 bg-[var(--color-accent-600)] hover:bg-[var(--color-accent-700)] text-white font-bold rounded-xl transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-[var(--color-accent-600)]/20"
                     >
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
                 </form>
 
-                <div className="mt-8 pt-6 border-t border-white/10 text-center text-sm text-white/40">
+                <div className="mt-8 pt-6 border-t border-[var(--color-border)] text-center text-sm text-[var(--color-text-secondary)]">
                     Don't have an account?{' '}
-                    <Link to="/app/register" className="text-[var(--color-accent-400)] hover:text-[var(--color-accent-300)] font-medium transition-colors">
+                    <Link to="/app/register" className="text-[var(--color-accent-600)] hover:text-[var(--color-accent-700)] font-medium transition-colors">
                         Create account
                     </Link>
                 </div>
