@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ===== TECH FORWARD + WARM EDITORIAL DESIGN SYSTEM ===== */
+
+:root {
+  /* PRIMARY: Deep Slate (tech) with warmth */
+  --color-primary-900: #0F172A;
+  --color-primary-800: #1E293B;
+  --color-primary-700: #334155;
+  --color-primary-600: #475569;
+  --color-primary-500: #64748B;
+  --color-primary-400: #94A3B8;
+  --color-primary-300: #CBD5E1;
+  --color-primary-200: #E2E8F0;
+  --color-primary-100: #F1F5F9;
+
+  /* ACCENT: Vibrant Teal */
+  --color-accent-900: #134E4A;
+  --color-accent-800: #115E59;
+  --color-accent-700: #0F766E;
+  --color-accent-600: #0D9488;
+  --color-accent-500: #14B8A6;
+  --color-accent-400: #2DD4BF;
+  --color-accent-300: #5EEAD4;
+  --color-accent-200: #99F6E4;
+  --color-accent-100: #CCFBF1;
+
+  /* SECONDARY: Warm Amber */
+  --color-amber-900: #78350F;
+  --color-amber-800: #92400E;
+  --color-amber-700: #B45309;
+  --color-amber-600: #D97706;
+  --color-amber-500: #F59E0B;
+  --color-amber-400: #FBBF24;
+  --color-amber-300: #FCD34D;
+  --color-amber-200: #FDE68A;
+  --color-amber-100: #FEF3C7;
+
+  /* MESH GRADIENT COLORS */
+  --color-mesh-1: #F0F9FF;
+  --color-mesh-2: #FEF3C7;
+  --color-mesh-3: #DBEAFE;
+  --color-mesh-4: #FDF4FF;
+  --color-mesh-5: #ECFDF5;
+
+  /* STATUS */
+  --color-negative-600: #DC2626;
+  --color-negative-100: #FEE2E2;
+  --color-positive-600: #059669;
+  --color-positive-100: #D1FAE5;
+  --color-warning-600: #EA580C;
+  --color-warning-100: #FFEDD5;
+
+  /* GLASS MORPHISM */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.1);
+
+  /* Typography Scale */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
+  --text-5xl: 3.5rem;
+  --text-6xl: 4.5rem;
+
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --leading-none: 1;
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 1.75;
+
+  --tracking-tighter: -0.05em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+}
+
+/* ===== SEMANTIC COLORS ===== */
+:root {
+  --color-bg-primary: #FAFAFA;
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-glass: var(--glass-bg);
+
+  --color-text-primary: var(--color-primary-900);
+  --color-text-secondary: var(--color-primary-600);
+  --color-text-muted: var(--color-primary-500);
+  --color-text-accent: var(--color-accent-600);
+
+  --color-action-primary: var(--color-accent-600);
+  --color-action-primary-hover: var(--color-accent-700);
+  --color-action-secondary: var(--color-amber-600);
+
+  --color-border: rgba(15, 23, 42, 0.08);
+  --color-border-hover: rgba(13, 148, 136, 0.2);
+
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-glass: var(--glass-shadow);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

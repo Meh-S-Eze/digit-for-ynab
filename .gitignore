@@ -1,0 +1,10 @@
+.env
+.envrc
+node_modules
+.goosehints
+.DS_Store
+logs
+dataclaude-desktop-config.json
+~
+.kilocode/
+coverage/

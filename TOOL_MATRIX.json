@@ -1,0 +1,585 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "description": "Structured tool metadata for optimal AI tool selection, ordering, and error recovery. Used by any AI tool integrating with YNAB MCP.",
+    "totalTools": 30,
+    "rateLimitPerHour": 120,
+    "lastUpdated": "2026-01-06"
+  },
+
+  "globalRules": {
+    "amounts": {
+      "format": "dollars_with_decimals",
+      "expenseRule": "NEGATIVE (e.g., -25.00 for $25 spent)",
+      "incomeRule": "POSITIVE (e.g., 3500.00 for $3500 earned)",
+      "notes": "Never use milliunits or scientific notation. Always include decimals.",
+      "examples": {
+        "expense": "-25.50",
+        "income": "3500.00",
+        "wrong_expense": "25.50",
+        "wrong_income": "-3500.00"
+      }
+    },
+    "dates": {
+      "format": "YYYY-MM-DD",
+      "notes": "ISO 8601 format only. No other formats accepted.",
+      "examples": {
+        "correct": "2026-01-02",
+        "wrong": [
+          "01/02/2026",
+          "today",
+          "January 2nd",
+          "2026-1-2"
+        ]
+      }
+    },
+    "ids": {
+      "budgetId": {
+        "source": "list_budgets()",
+        "format": "UUID string",
+        "required": "Almost all operations"
+      },
+      "accountId": {
+        "source": "list_accounts(budgetId)",
+        "format": "UUID string",
+        "required": "Before creating/updating transactions"
+      },
+      "transactionId": {
+        "source": "create_transaction() or get_unapproved_transactions()",
+        "format": "UUID string",
+        "required": "To approve/update/delete transactions"
+      },
+      "categoryId": {
+        "source": "budget_summary()",
+        "format": "UUID string",
+        "required": "For categorizing transactions or moving funds"
+      }
+    },
+    "importantNotes": [
+      "Never use account/category NAMES as IDs",
+      "Always extract IDs from API responses",
+      "Account name 'Checking' is NOT the same as accountId 'abc123-def456'",
+      "Verify IDs exist before using them"
+    ]
+  },
+
+  "prerequisiteChains": [
+    {
+      "name": "add_single_transaction",
+      "chain": [
+        "list_budgets",
+        "list_accounts",
+        "create_transaction",
+        "approve_transaction"
+      ],
+      "description": "User wants to add and immediately approve a single transaction",
+      "userIntent": "Add $X to Y account",
+      "timeEstimate": "4 API calls"
+    },
+    {
+      "name": "bulk_import",
+      "chain": [
+        "list_budgets",
+        "list_accounts",
+        "create_multiple_transactions"
+      ],
+      "description": "User wants to import multiple transactions at once",
+      "userIntent": "Add these 5 transactions",
+      "timeEstimate": "3 API calls",
+      "notes": "More efficient than looping create_transaction"
+    },
+    {
+      "name": "check_budget_status",
+      "chain": [
+        "list_budgets",
+        "budget_summary"
+      ],
+      "description": "User asks about overall budget health",
+      "userIntent": "What's my budget status?",
+      "timeEstimate": "2 API calls"
+    },
+    {
+      "name": "analyze_spending",
+      "chain": [
+        "list_budgets",
+        "analyze_spending_by_category"
+      ],
+      "description": "User asks where their money goes",
+      "userIntent": "Where do I spend the most?",
+      "timeEstimate": "2 API calls"
+    },
+    {
+      "name": "rebalance_budget",
+      "chain": [
+        "list_budgets",
+        "budget_summary",
+        "move_funds"
+      ],
+      "description": "User has overspent category, needs to rebalance",
+      "userIntent": "Move $100 from Entertainment to Dining",
+      "timeEstimate": "3 API calls",
+      "requiresConfirmation": true
+    },
+    {
+      "name": "approve_pending",
+      "chain": [
+        "list_budgets",
+        "get_unapproved_transactions",
+        "approve_transaction"
+      ],
+      "description": "User wants to approve pending transactions",
+      "userIntent": "Approve all pending",
+      "timeEstimate": "3+ API calls",
+      "notes": "May need to loop approve_transaction for multiple items"
+    },
+    {
+      "name": "delete_transaction",
+      "chain": [
+        "list_budgets",
+        "get_unapproved_transactions",
+        "delete_transaction"
+      ],
+      "description": "User wants to delete a transaction",
+      "userIntent": "Delete the Starbucks transaction",
+      "timeEstimate": "3 API calls",
+      "requiresConfirmation": true,
+      "destructive": true,
+      "notes": "PERMANENT - cannot be undone"
+    }
+  ],
+
+  "toolMetadata": [
+    {
+      "name": "list_budgets",
+      "priority": "critical_first",
+      "category": "discovery",
+      "prerequisites": [],
+      "dependents": [
+        "all_other_tools"
+      ],
+      "description": "Get list of all YNAB budgets the user has access to",
+      "output": {
+        "type": "array",
+        "items": {
+          "id": "budgetId (UUID)",
+          "name": "Budget name string"
+        }
+      },
+      "notes": "Call this FIRST if you don't have budgetId. Essential prerequisite for almost all operations."
+    },
+    {
+      "name": "list_accounts",
+      "priority": "high_prerequisite",
+      "category": "discovery",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "dependents": [
+        "create_transaction",
+        "create_multiple_transactions",
+        "create_transfer"
+      ],
+      "description": "Get list of accounts in a budget",
+      "output": {
+        "type": "array",
+        "items": {
+          "id": "accountId (UUID)",
+          "name": "Account name",
+          "type": "Checking, Savings, Credit Card, etc.",
+          "balance": "Current account balance in dollars"
+        }
+      },
+      "notes": "MUST call before creating transactions. Do NOT use account name instead of ID."
+    },
+    {
+      "name": "budget_summary",
+      "priority": "high",
+      "category": "analysis",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Get overall budget status, category budgets, and account balances",
+      "output": {
+        "type": "object",
+        "properties": {
+          "categories": "Array of categories with budgeted/activity/balance/overspent status",
+          "accounts": "Array of accounts with current balances",
+          "monthBudget": "Overall month stats: income, budgeted, activity, to_be_budgeted"
+        }
+      },
+      "useCase": "User asks 'What's my budget status?' or 'Which categories are overspent?'",
+      "notes": "Returns categoryIds needed for move_funds()"
+    },
+    {
+      "name": "create_transaction",
+      "priority": "high",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets",
+        "list_accounts"
+      ],
+      "description": "Create a single transaction",
+      "requiredFields": {
+        "budgetId": "UUID",
+        "accountId": "UUID (from list_accounts)",
+        "date": "YYYY-MM-DD",
+        "amount": "Number (negative for expenses, positive for income)",
+        "payeeName": "String (YNAB creates if not exists)"
+      },
+      "optionalFields": [
+        "categoryId",
+        "memo",
+        "cleared (cleared|uncleared|reconciled)",
+        "approved (boolean)",
+        "flagColor",
+        "importId"
+      ],
+      "output": {
+        "transactionId": "UUID of created transaction"
+      },
+      "amountRule": "NEGATIVE for expenses (-25.00), POSITIVE for income (3500.00)",
+      "dateFormat": "YYYY-MM-DD",
+      "commonMistakes": [
+        "Forgetting to call list_accounts first (missing accountId)",
+        "Using account name instead of accountId",
+        "Positive amount for expense (should be negative)",
+        "Negative amount for income (should be positive)",
+        "Wrong date format (01/02/2026 instead of 2026-01-02)",
+        "Not calling approve_transaction after"
+      ]
+    },
+    {
+      "name": "approve_transaction",
+      "priority": "high",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Approve a pending transaction",
+      "requiredFields": {
+        "budgetId": "UUID",
+        "transactionId": "UUID",
+        "approved": "boolean (true to approve)"
+      },
+      "output": {
+        "status": "Success message"
+      },
+      "notes": "New transactions are unapproved by default. Call after create_transaction."
+    },
+    {
+      "name": "create_multiple_transactions",
+      "priority": "high",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets",
+        "list_accounts"
+      ],
+      "description": "Create multiple transactions at once (bulk import)",
+      "requiredFields": {
+        "budgetId": "UUID",
+        "transactions": "Array of transaction objects"
+      },
+      "amountRule": "NEGATIVE for expenses, POSITIVE for income (SAME as single)",
+      "dateFormat": "YYYY-MM-DD",
+      "maxBatchSize": 100,
+      "output": {
+        "total_requested": "Number of transactions requested",
+        "total_created": "Number successfully created",
+        "duplicates_found": "Number of duplicates",
+        "transaction_ids": "Array of created transaction IDs"
+      },
+      "useCase": "User wants to import transactions from CSV or list",
+      "notes": "Use this instead of looping create_transaction (more efficient). Returns transaction IDs for potential approval."
+    },
+    {
+      "name": "get_unapproved_transactions",
+      "priority": "medium",
+      "category": "discovery",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Get list of pending (unapproved) transactions",
+      "output": {
+        "type": "array",
+        "items": {
+          "id": "transactionId",
+          "amount": "Amount in dollars",
+          "payee_name": "Payee name",
+          "date": "Transaction date",
+          "account_name": "Account name"
+        }
+      },
+      "useCase": "User asks 'Show me pending transactions'"
+    },
+    {
+      "name": "update_single_transaction",
+      "priority": "medium",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Update details of a single transaction",
+      "notes": "Use when user wants to fix/modify existing transaction"
+    },
+    {
+      "name": "update_multiple_transactions",
+      "priority": "medium",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Update multiple transactions at once",
+      "useCase": "Bulk approve transactions or bulk update fields",
+      "notes": "More efficient than looping update_single_transaction"
+    },
+    {
+      "name": "delete_transaction",
+      "priority": "medium",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "destructive": true,
+      "requiresUserConfirmation": true,
+      "description": "Permanently delete a transaction",
+      "notes": "CANNOT BE UNDONE. Always confirm with user first: 'Are you sure? This cannot be undone.'",
+      "recoveryPath": "Contact YNAB support (no automatic undo)"
+    },
+    {
+      "name": "create_split_transaction",
+      "priority": "medium",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets",
+        "list_accounts"
+      ],
+      "description": "Create a transaction split across multiple categories",
+      "useCase": "Purchase at one place but multiple categories (e.g., $100 at Target: $60 groceries + $40 household)",
+      "notes": "Do NOT use for transfers between accounts (use create_transfer instead)"
+    },
+    {
+      "name": "create_transfer",
+      "priority": "medium",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets",
+        "list_accounts"
+      ],
+      "description": "Transfer money between accounts",
+      "useCase": "Move $500 from checking to savings"
+    },
+    {
+      "name": "analyze_spending_by_category",
+      "priority": "low",
+      "category": "analysis",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Get spending breakdown by category",
+      "output": {
+        "type": "array",
+        "items": {
+          "category_name": "Category name",
+          "total_spent": "Total spent in dollars",
+          "transaction_count": "Number of transactions"
+        }
+      },
+      "useCase": "User asks 'Where does my money go?' or 'Show spending by category'"
+    },
+    {
+      "name": "generate_spending_report",
+      "priority": "low",
+      "category": "analysis",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Generate month-by-month spending trends",
+      "output": {
+        "type": "array",
+        "items": {
+          "month": "Month",
+          "income": "Total income",
+          "expenses": "Total expenses",
+          "net_balance": "Net change"
+        }
+      },
+      "useCase": "User asks 'Show me trends' or 'Month-by-month breakdown'"
+    },
+    {
+      "name": "analyze_transactions",
+      "priority": "low",
+      "category": "analysis",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "description": "Search transactions with filters",
+      "optionalFilters": [
+        "payee_name",
+        "category_name",
+        "date_range",
+        "amount_min/max"
+      ],
+      "useCase": "User asks 'Show me all Starbucks transactions' or 'Find transactions over $100'"
+    },
+    {
+      "name": "move_funds",
+      "priority": "medium",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets",
+        "budget_summary"
+      ],
+      "requiresUserConfirmation": true,
+      "description": "Move available funds between categories (same month)",
+      "output": {
+        "status": "Success with new category balances"
+      },
+      "useCase": "User has overspent category, needs to rebalance"
+    },
+    {
+      "name": "create_scheduled_transaction",
+      "priority": "low",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets",
+        "list_accounts"
+      ],
+      "description": "Create a recurring/scheduled transaction"
+    },
+    {
+      "name": "delete_scheduled_transaction",
+      "priority": "low",
+      "category": "write",
+      "prerequisites": [
+        "list_budgets"
+      ],
+      "destructive": true,
+      "requiresUserConfirmation": true,
+      "description": "Delete a scheduled transaction",
+      "notes": "PERMANENT. Always confirm with user first."
+    }
+  ],
+
+  "decisionTree": {
+    "userAsksAbout": {
+      "transactions": {
+        "addSingle": [
+          "list_budgets",
+          "list_accounts",
+          "create_transaction",
+          "approve_transaction"
+        ],
+        "addMultiple": [
+          "list_budgets",
+          "list_accounts",
+          "create_multiple_transactions"
+        ],
+        "addWithMultipleCategories": [
+          "list_budgets",
+          "list_accounts",
+          "create_split_transaction"
+        ],
+        "approve": [
+          "get_unapproved_transactions",
+          "approve_transaction"
+        ],
+        "search": [
+          "analyze_transactions"
+        ],
+        "delete": "MUST CONFIRM WITH USER FIRST"
+      },
+      "budget": {
+        "overallStatus": [
+          "list_budgets",
+          "budget_summary"
+        ],
+        "whereMoneyGoes": [
+          "list_budgets",
+          "analyze_spending_by_category"
+        ],
+        "trends": [
+          "list_budgets",
+          "generate_spending_report"
+        ]
+      },
+      "rebalancing": {
+        "moveMoney": [
+          "list_budgets",
+          "budget_summary",
+          "move_funds"
+        ]
+      }
+    }
+  },
+
+  "errorRecovery": {
+    "missingBudgetId": {
+      "error": "No budget ID provided",
+      "solution": "Call list_budgets() first and extract budgetId from response"
+    },
+    "missingAccountId": {
+      "error": "Account ID not found",
+      "solution": "Call list_accounts(budgetId) and find the accountId matching user's account name"
+    },
+    "wrongAmountSign": {
+      "error": "Invalid amount or appears to be wrong",
+      "solution": "Check: Is this expense (should be negative) or income (should be positive)?"
+    },
+    "wrongDateFormat": {
+      "error": "Invalid date format",
+      "solution": "Convert date to YYYY-MM-DD format (e.g., '2026-01-02')"
+    },
+    "transactionNotFound": {
+      "error": "Transaction ID not found",
+      "solution": "Call get_unapproved_transactions() or analyze_transactions() to find the transaction"
+    },
+    "categoryNotFound": {
+      "error": "Category ID not found",
+      "solution": "Call budget_summary() to get all available categoryIds"
+    },
+    "accountNotFound": {
+      "error": "Account not found",
+      "solution": "Call list_accounts(budgetId) to verify account exists"
+    },
+    "payeeNotFound": {
+      "error": "Payee not found (if using payeeId)",
+      "solution": "Use payeeName (string) instead - YNAB will create payee if not exists"
+    },
+    "splitAmountsMismatch": {
+      "error": "Split amounts don't match total",
+      "solution": "For split transactions, sum of split amounts must equal total amount"
+    },
+    "rateLimited": {
+      "error": "429 Too Many Requests",
+      "solution": "Rate limited (120 requests/hour). Wait 60+ seconds and retry. Use batch operations."
+    },
+    "unauthorized": {
+      "error": "401 Unauthorized",
+      "solution": "YNAB_API_TOKEN is invalid or expired. User must provide new token."
+    }
+  },
+
+  "bestPractices": {
+    "caching": [
+      "Store budgetId for the session",
+      "Store list_accounts results - don't re-call for every transaction",
+      "Cache budget_summary results - 5 minute cache is reasonable"
+    ],
+    "validation": [
+      "Before create_transaction: verify accountId exists",
+      "Before delete_transaction: confirm with user",
+      "Before moving funds: show current balances first"
+    },
+    "performance": [
+      "Use create_multiple_transactions instead of looping create_transaction",
+      "Use update_multiple_transactions instead of looping update_single_transaction",
+      "Batch operations when possible (respect rate limit: 120/hour)"
+    ],
+    "userExperience": [
+      "Show what you found: 'I found your Checking account (balance: $2500)'",
+      "Confirm selections: 'Using the Checking account for this transaction, correct?'",
+      "Summarize actions: '✓ Created and approved $15 Starbucks transaction'",
+      "Suggest next steps: 'Would you like me to approve it?'"
+    ]
+  }
+}

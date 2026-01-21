@@ -1,0 +1,92 @@
+import { MCPTool, logger } from "mcp-framework";
+import * as ynab from "ynab";
+import { z } from "zod";
+/**
+ * ClearTransactionTool - Mark transaction as cleared/uncleared/reconciled
+ *
+ * WHEN TO USE:
+ * - User asks: "Mark as cleared", "Reconcile transaction", "Unmark cleared"
+ * - User wants: Reconcile bank statement, mark confirmed, remove clearance
+ * - User is: Bank reconciliation, confirming transactions
+ *
+ * WORKFLOW:
+ * 1. MUST HAVE: transactionId (get from analyze_transactions())
+ * 2. MUST HAVE: cleared status (cleared, uncleared, or reconciled)
+ * 3. Call this tool with transaction ID and status
+ * 4. Returns: Updated transaction
+ *
+ * COMMON CLAUDE PATTERNS:
+ * User: "Mark cleared" → analyze_transactions() → clear_transaction(cleared='cleared')
+ * User: "Reconcile this" → clear_transaction(cleared='reconciled')
+ *
+ * CLEARED STATES:
+ * - uncleared: Transaction not yet confirmed with bank
+ * - cleared: Transaction confirmed (shown in bank statement)
+ * - reconciled: Transaction matched with bank records (locked state)
+ *
+ * IMPORTANT:
+ * - Different from 'approved' (approval is for budget planning)
+ * - Cleared = confirmed with actual bank
+ * - Reconciled = locked after bank reconciliation
+ * - Use this after checking bank statement
+ */
+class ClearTransactionTool extends MCPTool {
+    name = "clear_transaction";
+    description = "WORKING: Mark a transaction as cleared, uncleared, or reconciled. Cleared = confirmed with your bank. Reconciled = locked after bank reconciliation. Use this when reviewing your bank statement.";
+    schema = {
+        budgetId: {
+            type: z.string().optional(),
+            description: "The ID of the budget (optional, defaults to env var). Get from list_budgets() if needed.",
+        },
+        transactionId: {
+            type: z.string(),
+            description: "REQUIRED: Transaction UUID to update. Get from analyze_transactions().",
+        },
+        cleared: {
+            type: z.enum(["cleared", "uncleared", "reconciled"]),
+            description: "REQUIRED: New cleared status. 'cleared' = confirmed with bank, 'uncleared' = pending, 'reconciled' = locked after reconciliation.",
+        },
+    };
+    api;
+    budgetId;
+    constructor() {
+        super();
+        this.api = new ynab.API(process.env.YNAB_API_TOKEN || "");
+        this.budgetId = process.env.YNAB_BUDGET_ID || "";
+    }
+    async execute(input) {
+        const budgetId = input.budgetId || this.budgetId;
+        if (!process.env.YNAB_API_TOKEN) {
+            return "ERROR: YNAB API Token is not set. Please set YNAB_API_TOKEN environment variable.";
+        }
+        if (!budgetId) {
+            return "ERROR: No budget ID provided. Call list_budgets() first.";
+        }
+        try {
+            logger.info(`Updating cleared status for transaction ${input.transactionId} to ${input.cleared}`);
+            // We use the patch transaction endpoint
+            const response = await this.api.transactions.updateTransaction(budgetId, input.transactionId, {
+                transaction: {
+                    cleared: input.cleared
+                }
+            });
+            const updated = response.data.transaction;
+            return {
+                success: true,
+                message: `Transaction ${input.transactionId} is now ${input.cleared}.`,
+                transaction: {
+                    id: updated.id,
+                    date: updated.date,
+                    amount: updated.amount / 1000,
+                    cleared: updated.cleared
+                }
+            };
+        }
+        catch (error) {
+            logger.error(`Error clearing transaction:`);
+            logger.error(JSON.stringify(error, null, 2));
+            return `ERROR clearing transaction: ${JSON.stringify(error)}`;
+        }
+    }
+}
+export default ClearTransactionTool;
