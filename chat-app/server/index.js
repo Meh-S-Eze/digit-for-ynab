@@ -10,7 +10,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
-import { db, connectDB } from './db.js';
+import { supabase } from './db.js';
 import { clientManager } from './clientManager.js';
 
 dotenv.config();
@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 
 // Initialize dependencies
 // clientManager is imported directly
-connectDB();
+// supabase is initialized on import
 
 // Middleware
 app.use(cors({
@@ -48,8 +48,13 @@ app.post('/api/auth/register', async (req, res) => {
 
   try {
     // Check if user exists
-    const existing = await db.query('SELECT * FROM auth_users WHERE email = $email', { email });
-    if (existing[0] && existing[0].length > 0) {
+    const { data: existing, error: searchError } = await supabase
+      .from('auth_users')
+      .select('id')
+      .eq('email', email);
+
+    if (searchError) throw searchError;
+    if (existing && existing.length > 0) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
@@ -58,23 +63,32 @@ app.post('/api/auth/register', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Create User
-    const created = await db.create('auth_users', {
-      email,
-      password_hash: passwordHash,
-      created_at: new Date(),
-      updated_at: new Date()
-    });
-    const userRecord = created[0];
+    const { data: newUser, error: createError } = await supabase
+      .from('auth_users')
+      .insert([{
+        email,
+        password_hash: passwordHash,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (createError) throw createError;
 
     // Create Session
     const sessionId = crypto.randomBytes(32).toString('hex');
     const sessionExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30 days
 
-    await db.create('sessions', {
-      token: sessionId,
-      user: userRecord.id,
-      expires_at: sessionExpiresAt
-    });
+    const { error: sessionError } = await supabase
+      .from('sessions')
+      .insert([{
+        token: sessionId,
+        user_id: newUser.id,
+        expires_at: sessionExpiresAt.toISOString()
+      }]);
+
+    if (sessionError) throw sessionError;
 
     // Set Cookie
     res.cookie('sessionId', sessionId, {
@@ -84,11 +98,11 @@ app.post('/api/auth/register', async (req, res) => {
       expires: sessionExpiresAt
     });
 
-    res.json({ authenticated: true, user: { email: userRecord.email, id: userRecord.id } });
+    res.json({ authenticated: true, user: { email: newUser.email, id: newUser.id } });
 
   } catch (error) {
     console.error('Registration Error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ error: 'Registration failed: ' + error.message });
   }
 });
 
@@ -98,11 +112,15 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     // Find User
-    const users = await db.query('SELECT * FROM auth_users WHERE email = $email', { email });
-    if (!users[0] || users[0].length === 0) {
+    const { data: user, error: userError } = await supabase
+      .from('auth_users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (userError || !user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    const user = users[0][0];
 
     // Check Password
     const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -114,11 +132,15 @@ app.post('/api/auth/login', async (req, res) => {
     const sessionId = crypto.randomBytes(32).toString('hex');
     const sessionExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30 days
 
-    await db.create('sessions', {
-      token: sessionId,
-      user: user.id,
-      expires_at: sessionExpiresAt
-    });
+    const { error: sessionError } = await supabase
+      .from('sessions')
+      .insert([{
+        token: sessionId,
+        user_id: user.id,
+        expires_at: sessionExpiresAt.toISOString()
+      }]);
+
+    if (sessionError) throw sessionError;
 
     // Set Cookie
     res.cookie('sessionId', sessionId, {
@@ -197,34 +219,31 @@ app.get('/api/auth/ynab/callback', async (req, res) => {
 
     // DB Operations
     // Verify Session & User
-    const sessionResult = await db.query('SELECT user FROM sessions WHERE token = $token AND expires_at > time::now() FETCH user', { token: sessionId });
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select('user_id')
+      .eq('token', sessionId)
+      .gt('expires_at', new Date().toISOString())
+      .single();
 
-    if (!sessionResult[0] || sessionResult[0].length === 0) {
+    if (sessionError || !session) {
       return res.status(401).send('Invalid or expired session.');
     }
 
-    const userRecord = sessionResult[0][0].user;
+    const userId = session.user_id;
 
-    // 2. Store YNAB Connection
-    // Upsert ynab_connections for this user
-    const existingConnection = await db.query('SELECT * FROM ynab_connections WHERE user = $user', { user: userRecord.id });
-
-    if (existingConnection[0] && existingConnection[0].length > 0) {
-      await db.merge(existingConnection[0][0].id, {
+    // 2. Store YNAB Connection (Upsert)
+    const { error: upsertError } = await supabase
+      .from('ynab_connections')
+      .upsert({
+        user_id: userId,
         ynab_id: ynabId,
         access_token,
         refresh_token,
-        expires_at: expiresAt
-      });
-    } else {
-      await db.create('ynab_connections', {
-        user: userRecord.id,
-        ynab_id: ynabId,
-        access_token,
-        refresh_token,
-        expires_at: expiresAt
-      });
-    }
+        expires_at: expiresAt.toISOString()
+      }, { onConflict: 'user_id' }); // Ensure one connection per user
+
+    if (upsertError) throw upsertError;
 
     // Redirect to App Settings or Chat
     res.redirect('http://localhost:5173/app/chat'); // Go to chat after linking
@@ -242,34 +261,45 @@ app.get('/api/auth/me', async (req, res) => {
   if (!sessionId) return res.status(401).json({ authenticated: false });
 
   try {
-    const result = await db.query('SELECT user FROM sessions WHERE token = $token AND expires_at > time::now() FETCH user', {
-      token: sessionId
-    });
+    // Verify Session & Get User
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select(`
+        user_id,
+        auth_users (
+          id,
+          email
+        )
+      `)
+      .eq('token', sessionId)
+      .gt('expires_at', new Date().toISOString())
+      .single();
 
-    if (result[0] && result[0].length > 0) {
-      const user = result[0][0].user;
-
-      // Check for YNAB connection
-      const connectionResult = await db.query('SELECT * FROM ynab_connections WHERE user = $user', { user: user.id });
-      const hasYnab = connectionResult[0] && connectionResult[0].length > 0;
-      let ynabToken = null;
-      if (hasYnab) {
-        ynabToken = connectionResult[0][0].access_token;
-      }
-
-      return res.json({
-        authenticated: true,
-        user: { email: user.email, id: user.id },
-        hasYnab,
-        ynabToken // Send to client? Or keep secret? Client currently uses it.
-        // Previously we sent it or client used it from headers.
-        // We'll send it for now to maintain compatibility with client-side logic that might use it
-        // although we are moving to server-side resolution.
-      });
-    } else {
+    if (sessionError || !session || !session.auth_users) {
       res.clearCookie('sessionId');
       return res.status(401).json({ authenticated: false });
     }
+
+    const user = session.auth_users;
+
+    // Check for YNAB connection
+    const { data: connection, error: connError } = await supabase
+      .from('ynab_connections')
+      .select('access_token')
+      .eq('user_id', user.id)
+      .single();
+
+    // connection might be null if not found, which is fine
+    const hasYnab = !!connection;
+    const ynabToken = connection ? connection.access_token : null;
+
+    return res.json({
+      authenticated: true,
+      user: { email: user.email, id: user.id },
+      hasYnab,
+      ynabToken
+    });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
@@ -329,13 +359,24 @@ app.post('/api/budgets', async (req, res) => {
     // Resolve session to token
     try {
       // 1. Get User from Session
-      const sessionResult = await db.query('SELECT user FROM sessions WHERE token = $token AND expires_at > time::now()', { token: sessionId });
-      if (sessionResult[0] && sessionResult[0].length > 0) {
-        const userId = sessionResult[0][0].user;
-        // 2. Get Token for User
-        const tokenResult = await db.query('SELECT access_token FROM ynab_connections WHERE user = $user', { user: userId });
-        if (tokenResult[0] && tokenResult[0].length > 0) {
-          ynabToken = tokenResult[0][0].access_token;
+      const { data: session } = await supabase
+        .from('sessions')
+        .select('user_id')
+        .eq('token', sessionId)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (session) {
+        const userId = session.user_id;
+        // 2. Get YNAB Token for User
+        const { data: connection } = await supabase
+          .from('ynab_connections')
+          .select('access_token')
+          .eq('user_id', userId)
+          .single();
+
+        if (connection) {
+          ynabToken = connection.access_token;
         }
       }
     } catch (err) {
@@ -377,12 +418,23 @@ app.post('/api/chat', async (req, res) => {
   // --- Session Auth Logic ---
   if (sessionId && (!ynabToken || ynabToken === 'undefined')) {
     try {
-      const sessionResult = await db.query('SELECT user FROM sessions WHERE token = $token AND expires_at > time::now()', { token: sessionId });
-      if (sessionResult[0] && sessionResult[0].length > 0) {
-        const userId = sessionResult[0][0].user;
-        const tokenResult = await db.query('SELECT access_token FROM ynab_connections WHERE user = $user', { user: userId });
-        if (tokenResult[0] && tokenResult[0].length > 0) {
-          ynabToken = tokenResult[0][0].access_token;
+      const { data: session } = await supabase
+        .from('sessions')
+        .select('user_id')
+        .eq('token', sessionId)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (session) {
+        const userId = session.user_id;
+        const { data: connection } = await supabase
+          .from('ynab_connections')
+          .select('access_token')
+          .eq('user_id', userId)
+          .single();
+
+        if (connection) {
+          ynabToken = connection.access_token;
         }
       }
     } catch (err) {
