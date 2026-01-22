@@ -43,7 +43,7 @@ const Register = () => {
     };
 
     return (
-    return (
+
         <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAFAFA] text-[var(--color-text-primary)] relative z-10">
             {/* Mesh gradient overlay for subtle brand feel */}
             <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-mesh-1)] via-transparent to-[var(--color-mesh-2)] pointer-events-none opacity-80"></div>
