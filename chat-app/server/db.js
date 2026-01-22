@@ -4,6 +4,13 @@ const db = new Surreal();
 
 const connectDB = async () => {
     try {
+        console.log('🔗 Connecting to SurrealDB:', process.env.SURREAL_URL);
+        console.log('👤 User:', process.env.SURREAL_USER);
+        console.log('📂 Scope:', {
+            ns: process.env.SURREAL_NS,
+            db: process.env.SURREAL_DB
+        });
+
         await db.connect(process.env.SURREAL_URL);
 
         // Strategy 1: Try Root Authentication (Username/Password only)
