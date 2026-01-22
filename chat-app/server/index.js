@@ -246,7 +246,8 @@ app.get('/api/auth/ynab/callback', async (req, res) => {
     if (upsertError) throw upsertError;
 
     // Redirect to App Settings or Chat
-    res.redirect('http://localhost:5173/app/chat'); // Go to chat after linking
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    res.redirect(`${clientUrl}/app/chat`); // Go to chat after linking
 
   } catch (error) {
     console.error('OAuth Error:', error.response?.data || error.message);

@@ -66,7 +66,7 @@ export function SettingsProvider({ children }) {
         if (!ynabToken) return;
         setIsLoadingBudgets(true);
         try {
-            const response = await fetch('http://localhost:3001/api/budgets', {
+            const response = await fetch('/api/budgets', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
