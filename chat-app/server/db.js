@@ -6,11 +6,35 @@ const connectDB = async () => {
     try {
         await db.connect(process.env.SURREAL_URL);
 
-        await db.signin({
-            username: process.env.SURREAL_USER,
-            password: process.env.SURREAL_PASS,
-        });
+        // Strategy 1: Try Root Authentication (Username/Password only)
+        // This is typical for self-hosted or root-level access.
+        try {
+            console.log('Attempting Root Authentication...');
+            await db.signin({
+                username: process.env.SURREAL_USER,
+                password: process.env.SURREAL_PASS,
+            });
+            console.log('✅ Root Authentication Successful');
+        } catch (rootError) {
+            console.warn('⚠️ Root Authentication Failed, trying Namespace/Database Authentication...', rootError.message);
 
+            // Strategy 2: Try Namespace/Database Authentication (Required for scoped users)
+            // This is typical for Surreal Cloud or restricted database users.
+            try {
+                await db.signin({
+                    username: process.env.SURREAL_USER,
+                    password: process.env.SURREAL_PASS,
+                    namespace: process.env.SURREAL_NS,
+                    database: process.env.SURREAL_DB,
+                });
+                console.log('✅ Namespace/Database Authentication Successful');
+            } catch (scopedError) {
+                console.error('❌ All Authentication Attempts Failed');
+                throw scopedError; // Throw the final error to be caught by the outer catch
+            }
+        }
+
+        // Select Namespace and Database
         await db.use({
             namespace: process.env.SURREAL_NS,
             database: process.env.SURREAL_DB,
