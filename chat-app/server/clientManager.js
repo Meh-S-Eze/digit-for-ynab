@@ -52,9 +52,35 @@ class ClientManager {
 
         console.log(`Creating new MCP client for token ending in ...${ynabToken.slice(-4)}`);
 
+        const mcpServerPath = path.resolve(__dirname, '../../dist/index.js');
+        console.log(`[ClientManager] Resolving MCP server at: ${mcpServerPath}`);
+
+        // Debug Check
+        import fs from 'fs';
+        try {
+            if (fs.existsSync(mcpServerPath)) {
+                console.log("✅ MCP Server file exists.");
+            } else {
+                console.error("❌ MCP Server file NOT FOUND at " + mcpServerPath);
+                // List specific directories to help debug
+                try {
+                    console.log("Contents of ../../:", fs.readdirSync(path.resolve(__dirname, '../../')));
+                    if (fs.existsSync(path.resolve(__dirname, '../../dist'))) {
+                        console.log("Contents of ../../dist:", fs.readdirSync(path.resolve(__dirname, '../../dist')));
+                    } else {
+                        console.log("dist directory does not exist.");
+                    }
+                } catch (err) {
+                    console.error("Error listing directories:", err);
+                }
+            }
+        } catch (err) {
+            console.error("Error checking file existence:", err);
+        }
+
         const transport = new StdioClientTransport({
             command: 'node',
-            args: [path.join(__dirname, '../../dist/index.js')],
+            args: [mcpServerPath],
             env: {
                 ...process.env,
                 YNAB_API_TOKEN: ynabToken, // Inject the specific user's token
