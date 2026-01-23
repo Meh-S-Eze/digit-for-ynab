@@ -11,7 +11,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "cd chat-app/client && npm install && npm run build && cd ../server && npm install",
+    "build": "tsc && cd chat-app/client && npm install && npm run build && cd ../server && npm install",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "start": "cd chat-app/server && node index.js",
