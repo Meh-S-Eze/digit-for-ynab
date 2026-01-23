@@ -57,7 +57,6 @@ class ClientManager {
         console.log(`[ClientManager] Resolving MCP server at: ${mcpServerPath}`);
 
         // Debug Check
-        import fs from 'fs';
         try {
             if (fs.existsSync(mcpServerPath)) {
                 console.log("✅ MCP Server file exists.");
